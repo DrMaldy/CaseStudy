@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VR Mobilfunk Partnerhub – Werbemittel-Generator (Prototyp)
 
-## Getting Started
+Partnerbanken erstellen in fünf Schritten personalisierte Werbemittel für „VR Mobilfunk M“: einen **Social-Media-Post** (PNG/JPG) oder einen **Filial-Flyer** (PDF, DIN A5). Die KI formuliert zielgruppengerechte Texte. Logo, Bankname, Ort und Konditionen setzt das Partnerhub selbst ein.
 
-First, run the development server:
+Architektur, Annahmen und Entscheidungen: **[docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md)**
+
+## Setup
+
+Voraussetzung: Node.js ≥ 22.
 
 ```bash
+npm install                   # installiert über postinstall auch den passenden Chromium für den Export
+cp .env.example .env          # danach BETTER_AUTH_SECRET setzen (z. B. openssl rand -base64 32)
+npm run db:reset              # Migration + Seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Anschließend <http://localhost:3000> öffnen.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Testzugänge (Seed)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Alle Seed-Nutzer verwenden das Passwort aus `SEED_PASSWORD` in `.env`.
 
-## Learn More
+| E-Mail | Rolle · Bank · Filiale |
+|---|---|
+| `superuser@partnerhub.test` | **Superuser** · alle Banken (Wechsel über den Bankumschalter im Header) |
+| `marketing.fuerstenau@osnordland.test` | Filiale · VR-Bank eG Osnabrücker Nordland · Hauptgeschäftsstelle Fürstenau |
+| `marketing.menslage@osnordland.test` | Filiale · VR-Bank eG Osnabrücker Nordland · Menslage |
+| `marketing@kraichgau.test` | Filiale · Volksbank Kraichgau eG · Hauptstelle Wiesloch |
+| `marketing@mittelhessen.test` | Filiale · Volksbank Mittelhessen eG · Gießen Schiffenberger Weg |
 
-To learn more about Next.js, take a look at the following resources:
+Bank- und Filialdaten stammen aus öffentlichen vr.de-Standortseiten (Stand 14.11.2026) und dienen nur zu Testzwecken.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## KI-Anbieter
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Standard ist der **Mock** (`AI_PROVIDER=mock`), der ohne Netzwerk auskommt. Für einen echten Anbieter über einen OpenAI-kompatiblen Endpunkt, z. B. OpenRouter:
 
-## Deploy on Vercel
+```env
+AI_PROVIDER="openai-compatible"
+AI_BASE_URL="https://openrouter.ai/api/v1"
+AI_API_KEY="…"
+AI_MODEL="<Modell-ID des Anbieters>"
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Mit `MOCK_AI_FAIL=once|always` lassen sich Retry und Fehlermeldung testen.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Skripte
+
+| Befehl | Zweck |
+|---|---|
+| `npm run dev` | Entwicklungsserver |
+| `npm test` | Unit-Tests (Vitest) |
+| `npm run typecheck` / `npm run lint` | TypeScript / ESLint |
+| `npm run db:reset` | Datenbank neu aufsetzen inkl. Seed |
+
+## Struktur
+
+```
+prisma/                 Schema, Migration, Seed (Banken, Filialen, Tarif, Bildmaterial, Nutzer)
+src/lib/werbemittel/    Baukasten-Registry, Tokens, Render-Model, Checks, Beitragstext
+src/lib/ai/             Provider-Interfaces, Mock, OpenAI-kompatibler Adapter, Zod-Schema, Retry
+src/lib/export/         Playwright-Rendering (PNG/JPG/PDF)
+src/templates/          Vorlagen (Inline-Styles: Vorschau = Export)
+src/components/wizard/  Die fünf Wizard-Schritte
+src/actions/            Server Actions
+```

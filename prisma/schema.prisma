@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Stammdaten (Seed, in der Oberfläche nicht änderbar – Ausnahme: regionalPrompt) ───
+
+model Bank {
+  id       String      @id
+  name     String
+  kurzname String
+  region   String
+  website  String
+  telefon  String
+  logoPfad String
+  quelle   String
+  filialen Filiale[]
+  bilder   BildAsset[]
+}
+
+model Filiale {
+  id                           String        @id
+  bankId                       String
+  bank                         Bank          @relation(fields: [bankId], references: [id])
+  name                         String
+  strasse                      String
+  plz                          String
+  ort                          String
+  oeffnungszeiten              String
+  telefon                      String
+  regionalPrompt               String?
+  regionalPromptAktualisiertAm DateTime?
+  users                        User[]
+  werbemittel                  Werbemittel[] @relation("Ersteller")
+  bezugIn                      Werbemittel[] @relation("Bezug")
+}
+
+model Angebot {
+  id                String @id
+  name              String
+  datenvolumenGb    Int
+  netz              String
+  roaming           String
+  preisMonat        Float
+  mitgliederBonusGb Int
+  laufzeit          String
+  abschluss         String
+  pflichtangaben    String
+  stand             String
+}
+
+model BildAsset {
+  id           String        @id
+  bankId       String?
+  bank         Bank?         @relation(fields: [bankId], references: [id])
+  datei        String
+  beschreibung String
+  zielgruppen  String // JSON-Array von Zielgruppen-Keys
+  herkunft     String // BIBLIOTHEK | KI_MOCK | KI
+  platzhalter  Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  werbemittel  Werbemittel[]
+}
+
+// ─── Werbemittel ───
+
+model Werbemittel {
+  id                  String          @id @default(cuid())
+  userId              String
+  user                User            @relation(fields: [userId], references: [id])
+  filialeId           String
+  filiale             Filiale         @relation("Ersteller", fields: [filialeId], references: [id])
+  name                String
+  typ                 String // social | flyer
+  format              String
+  storyVariante       Boolean         @default(false)
+  vorlage             String
+  zielgruppe          String?
+  argumente           String          @default("[]") // JSON-Array
+  anrede              String          @default("DU")
+  schritt             Int             @default(1)
+  status              String          @default("ENTWURF") // ENTWURF | EXPORTIERT
+  vorschlaege         String? // JSON der letzten gültigen KI-Vorschläge
+  gewaehlterVorschlag Int?
+  headline            String          @default("")
+  subline             String          @default("")
+  cta                 String          @default("")
+  bildidee            String          @default("")
+  bildAssetId         String?
+  bildAsset           BildAsset?      @relation(fields: [bildAssetId], references: [id])
+  bezugFilialeId      String
+  bezugFiliale        Filiale         @relation("Bezug", fields: [bezugFilialeId], references: [id])
+  ortImMotiv          Boolean         @default(true)
+  ausgeblendet        String          @default("[]") // JSON-Array von Element-Keys (z. B. "logo", "subline")
+  hintergrund         String          @default("ultramarin") // nur für Vorlagen mit wählbarem Hintergrund
+  createdAt          DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  generierungen       KiGenerierung[]
+  exporte             Export[]
+
+  @@index([filialeId])
+}
+
+model KiGenerierung {
+  id            String      @id @default(cuid())
+  werbemittelId String
+  werbemittel   Werbemittel @relation(fields: [werbemittelId], references: [id], onDelete: Cascade)
+  provider      String
+  modell        String
+  anfrage       String
+  rohantwort    String
+  gueltig       Boolean
+  versuch       Int
+  fehler        String?
+  createdAt     DateTime    @default(now())
+}
+
+model Export {
+  id            String      @id @default(cuid())
+  werbemittelId String
+  werbemittel   Werbemittel @relation(fields: [werbemittelId], references: [id], onDelete: Cascade)
+  dateiformat   String
+  variante      String
+  createdAt     DateTime    @default(now())
+}
+
+// ─── Better Auth ───
+
+model User {
+  id            String        @id
+  name          String
+  email         String        @unique
+  emailVerified Boolean       @default(false)
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  filialeId     String
+  filiale       Filiale       @relation(fields: [filialeId], references: [id])
+  funktion      String        @default("Marketing")
+  rolle         String        @default("FILIALE") // FILIALE | SUPERUSER
+  sessions      Session[]
+  accounts      Account[]
+  werbemittel   Werbemittel[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
